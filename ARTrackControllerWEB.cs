@@ -9,20 +9,14 @@ using System.IO;
 using UnityEngine.UI;
 using System;
 
-public class ARTrackController : MonoBehaviour
+public class ARTrackControllerWEB : MonoBehaviour
 {
-    UdpClient clientData;
-    [Header("Server UDP")]
-    public int portData = 9000;
-    public int receiveBufferSize = 120000;
-    IPEndPoint ipEndPointData;
-    private object obj = null;
-    private System.AsyncCallback AC;
-    byte[] receivedBytes;
+
     float[] oldPositions = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };//x ,y, z - right - up - forward
     float[] newPositions = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };//x ,y, z- right - up - forward
     JObject json;
     bool umaVez = false; //Saber quando o programa rodar na primeira vez
+
     [Serializable]
     public class Configuracoes
     {
@@ -47,69 +41,50 @@ public class ARTrackController : MonoBehaviour
         public float min_y = -2.5f;
         public float max_z = 4;
         public float min_z = -4;
+
+
     }
+
+
+
     [Header("Objetos")]
+
     public GameObject Cubo; // Objeto que sera movimentado
     string newTimestamp, oldTimestamp; //Variaveis que guardam o tempo enviado pelo ar tracking
-    Vector3 ultimaPos;
+
+
+    Vector3 UltimaPos;
     StreamWriter arquivo;
     string[] jtokens = {"timestamp","success","translation_x","translation_y","translation_z","rotation_right_x"
     ,"rotation_right_y","rotation_right_z","rotation_up_x","rotation_up_y","rotation_up_z","rotation_forward_x"
     ,"rotation_forward_y","rotation_forward_z"};
+
+
     public Text infoDebug; //Texto que mostra os dados recebidos do ar tracking
     string receivedString;
-    public Configuracoes config;
-    void Start()
-    {
-        ConectarUDP();
-    }
-    public void ConectarUDP() //Conecta no servidor  do AR TRacking
-    {
-        ipEndPointData = new IPEndPoint(IPAddress.Loopback, portData);
-        clientData = new UdpClient();
-        clientData.Client.ReceiveBufferSize = receiveBufferSize;
-        clientData.Client.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, optionValue: true);
-        clientData.Client.Bind(ipEndPointData);
-        Debug.Log("BufSize: " + clientData.Client.ReceiveBufferSize);
-        AC = new System.AsyncCallback(LeitorUDP);
-        clientData.BeginReceive(AC, obj);
-        Debug.Log("Conectando com AR Tracking");
-    }
-    void LeitorUDP(System.IAsyncResult result) // Le os dados enviados pelo AR Tracking
-    {
-        receivedBytes = clientData.EndReceive(result, ref ipEndPointData);
-        byte[] receiveBytes = clientData.Receive(ref ipEndPointData);
-        receivedString = Encoding.ASCII.GetString(receiveBytes);
-        json = JObject.Parse(receivedString);
-        clientData.BeginReceive(AC, obj);
-    }
-    private void Update()
-    {
-        MovimentaCubo();
 
-    }
-    ///<summary>Funcao <c>MovimentaCubo</c> Controla todos os passos da movimentacao do objeto.
+    public Configuracoes config;
+    ///<summary>Funcao <c>MovimentaCuboWEB</c> Recebe os dados via websocket e processa os movimentos.
     ///</summary>
-    void MovimentaCubo()
+    void MovimentaCuboWEB(string data)
     {
         try // Movimenta Cubo
         {
+            json = JObject.Parse(data);
             if (json["success"].ToString() == "True")
             {
-                infoDebug.text = receivedString;
+                infoDebug.text = data;
                 GameObject.Find("Canvas").GetComponent<Botoes>().Conectou(true);
                 SalvaDadosJson();//Salva os dados recebidos
-
                 if (umaVez == false) // executa uma vez para o cubo nao ir longe
                 {
                     oldPositions[0] = newPositions[0];
                     oldPositions[1] = newPositions[1];
                     oldPositions[2] = newPositions[2];
                     umaVez = true;
-                    ultimaPos = Cubo.transform.position;
+                    UltimaPos = Cubo.transform.position;
                     if (config.Rotacionar) { Rotacionar(true); }
                 }
-
                 //Translacao
                 if (config.Transladar) { Transladar(); }
                 //Limites  de translacao do cubo
@@ -121,10 +96,10 @@ public class ARTrackController : MonoBehaviour
                 oldPositions[1] = newPositions[1];
                 oldPositions[2] = newPositions[2];
                 oldTimestamp = newTimestamp;
-                ultimaPos = Cubo.transform.position;
+                UltimaPos = Cubo.transform.position;
             }
             else
-            {//Caso o cubo nao esteja sendo reconhecido
+            {//Caso o cubo nao esteja sendoreconhecido
                 GameObject.Find("Canvas").GetComponent<Botoes>().Conectou(false);
                 umaVez = true;//faz rodar denovo  quando desconeta
                 newTimestamp = json["timestamp"].ToString();
@@ -141,20 +116,20 @@ public class ARTrackController : MonoBehaviour
     ///</summary>
     void Rotacionar(bool first)
     {
-        float rot_min = 0.8f;
-        float rot_max = 400f;
+        float rot_min = 1f;
+        float rot_max = 1000f;
         Vector3 up = new Vector3(newPositions[6], newPositions[7], newPositions[8]);
         Vector3 forward = new Vector3(newPositions[9], newPositions[10], newPositions[11]);
         var variacao = Vector3.Distance(Cubo.transform.localRotation.eulerAngles, Quaternion.LookRotation(forward, up).eulerAngles);
         if (first)
-        {
+        {//primeira  vez
             Cubo.transform.localRotation = Quaternion.LookRotation(forward, up);
         }
         else if (variacao > rot_min && variacao < rot_max)
         {
-
             Cubo.transform.localRotation = Quaternion.LookRotation(forward, up);
         }
+
     }
     ///<summary>Funcao <c>Transladar</c> Faz a translacao do objeto.
     ///</summary>
@@ -177,15 +152,15 @@ public class ARTrackController : MonoBehaviour
     {
         if (Cubo.transform.position.z < config.min_z || Cubo.transform.position.z > config.max_z)
         {//Limite de posicao z
-            Cubo.transform.position = ultimaPos;
+            Cubo.transform.position = UltimaPos;
         }
         else if (Cubo.transform.position.x < config.min_x || Cubo.transform.position.x > config.max_x)
         { //limite x
-            Cubo.transform.position = ultimaPos;
+            Cubo.transform.position = UltimaPos;
         }
         else if (Cubo.transform.position.y < config.min_y || Cubo.transform.position.y > config.max_y)
         { //limite z
-            Cubo.transform.position = ultimaPos;
+            Cubo.transform.position = UltimaPos;
         }
     }
     ///<summary>Funcao <c>SalvaDadosJson</c> Transforma os dados recebidos em Json para as variaveis do scrip.
@@ -203,14 +178,9 @@ public class ARTrackController : MonoBehaviour
         newPositions[11] = float.Parse(json["rotation_forward_z"].ToString());
         newTimestamp = json["timestamp"].ToString();
     }
-    void OnDestroy()
-    {
-        if (clientData != null)
-        {
-            clientData.Close();
-        }
-    }
+
 }
+
 
 /* RETORNO do AR TRACKING
 {"timestamp": 1677594319.8186967, "success": true, "translation_x": 11.430583295477035, "translation_y": 5.142802280146702, "translation_z": 42.815210412740825, 
