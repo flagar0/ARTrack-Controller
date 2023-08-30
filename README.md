@@ -15,7 +15,7 @@ Controlador de AR Tracking para Unity | Movimentação de um gameObject com AR T
 
 
 ## Como usar para WEB
-Adicionar o codigo `ARControllerWEB` no `EventSystem`, fazer a configuracoes e exportar
+Adicionar o codigo `ARControllerWEB` no `EventSystem`, fazer a configurações e exportar.
 Alterar codigo do `index.html` para mudar no final :
 
 ```diff
